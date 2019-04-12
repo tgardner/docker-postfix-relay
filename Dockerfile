@@ -1,7 +1,4 @@
-FROM alpine:3.9
-
-VOLUME ["/var/log/socklog", "/var/spool/postfix"]
-EXPOSE 25
+FROM trentgardner/base-s6:latest
 
 ENV HOST=localhost \
     DOMAIN=localdomain \
@@ -19,23 +16,10 @@ ENV HOST=localhost \
     MAIL_NON_CANONICAL_DEFAULT='' \
     MESSAGE_SIZE_LIMIT=26214400
 
-# Install s6-overlay, socklog-overlay
-ARG S6_VERSION=v1.22.1.0
-ARG SOCKLOG_VERSION=v3.1.0-2
-
-ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz /tmp/
-ADD https://github.com/just-containers/socklog-overlay/releases/download/${SOCKLOG_VERSION}/socklog-overlay-amd64.tar.gz /tmp/
-
-RUN apk add --no-cache postfix nano iproute2 bash tzdata cyrus-sasl-plain cyrus-sasl-login && \
-    tar xzf /tmp/s6-overlay-amd64.tar.gz -C / && \
-    tar xzf /tmp/socklog-overlay-amd64.tar.gz -C / && \
-    (rm "/tmp/"* 2>/dev/null || true) && (rm -rf /var/cache/apk/* 2>/dev/null || true)
-
 ADD etc /etc
-ADD sendmail_test.sh /
+ADD sendmail_test /usr/local/bin/
 
-RUN chmod a+rx /*.sh && \
-    ln -s /sendmail_test.sh /usr/local/bin/sendmail_test && \
+RUN cleaninstall postfix iproute2 cyrus-sasl-plain cyrus-sasl-login && \
     postconf -e inet_interfaces=all && \
     postconf -e smtp_tls_security_level=may && \
     postconf -e smtp_sasl_auth_enable=yes && \
@@ -51,5 +35,8 @@ RUN chmod a+rx /*.sh && \
     postmap /etc/postfix/virtual_regexp && \
     postmap /etc/postfix/virtual && \
     postmap /etc/postfix/sender_canonical_regexp
+
+VOLUME ["/var/spool/postfix"]
+EXPOSE 25
 
 ENTRYPOINT ["/init"]

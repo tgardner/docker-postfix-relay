@@ -17,7 +17,7 @@ ENV HOST=localhost \
     MESSAGE_SIZE_LIMIT=26214400
 
 ADD etc /etc
-ADD sendmail_test /usr/local/bin/
+ADD bin /usr/local/bin
 
 RUN cleaninstall postfix iproute2 cyrus-sasl-plain cyrus-sasl-login && \
     postconf -e inet_interfaces=all && \

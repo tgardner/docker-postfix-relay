@@ -1,0 +1,69 @@
+#!/usr/bin/with-contenv bash
+
+_add_line() {
+    local check="$1"
+    local line="$2"
+    local file="$3"
+    if ! grep -q "$check" "$file"; then
+        echo "$line" >> "$file"
+    fi
+}
+
+routes=$(ip route | grep -v default | cut -d' ' -f1 | tr '\n' ' ') 
+if [ -n "$routes" ]; then
+    postconf -e mynetworks="127.0.0.0/8 [::ffff:127.0.0.0]/104 [::1]/128 $routes"
+    postconf -e inet_interfaces=all
+fi
+
+postconf -e "inet_protocols=$INET_PROTOCOLS"
+postconf -e "myhostname=$HOST"
+postconf -e "mydomain=$DOMAIN"
+echo $MAILNAME > /etc/mailname
+
+# Email size limits
+postconf -e message_size_limit=$MESSAGE_SIZE_LIMIT
+
+# Mail relay host
+if [ -n "$MAIL_RELAY_HOST" ] && [ -z "$MAIL_RELAY_PORT" ]; then
+    postconf -e relayhost=$MAIL_RELAY_HOST;
+fi
+if [ -n "$MAIL_RELAY_HOST" ] && [ -n "$MAIL_RELAY_PORT" ]; then
+    postconf -e relayhost="$MAIL_RELAY_HOST:$MAIL_RELAY_PORT";
+fi
+if [ -n "$MAIL_RELAY_HOST" ] && [ -n "$MAIL_RELAY_USER" ] && [ -n "$MAIL_RELAY_PASS" ]; then
+    _add_line "$MAIL_RELAY_HOST" "$MAIL_RELAY_HOST $MAIL_RELAY_USER:$MAIL_RELAY_PASS" /etc/postfix/sasl_passwd
+    postmap /etc/postfix/sasl_passwd
+fi
+
+# Configure SMTPS wrapping if port is 465
+if [ "$MAIL_RELAY_PORT" == "465" ]; then
+    postconf -e smtp_tls_wrappermode=yes
+    postconf -e smtp_tls_security_level=encrypt
+fi
+
+# Force to send all emails to one email address
+if [ -n "$MAIL_VIRTUAL_FORCE_TO" ]; then
+    _add_line "$MAIL_VIRTUAL_FORCE_TO" "/.+@.+/ $MAIL_VIRTUAL_FORCE_TO" /etc/postfix/virtual_regexp
+    postmap /etc/postfix/virtual_regexp
+fi
+
+# Define some virtual email_to addresses
+if [ -n "$MAIL_VIRTUAL_DEFAULT" ] && [ -n "$MAIL_VIRTUAL_ADDRESSES" ]; then
+    for addr in $MAIL_VIRTUAL_ADDRESSES; do
+        _add_line "$addr" "$addr $MAIL_VIRTUAL_DEFAULT" /etc/postfix/virtual
+    done
+    postmap /etc/postfix/virtual
+fi
+
+# Define canonical and non-canonical sender domain
+if [ -n "$MAIL_CANONICAL_DOMAINS" ]; then
+    for domain in $MAIL_CANONICAL_DOMAINS; do
+        _add_line "{1}@$domain" "/^(.+)@${domain//\./\\.}$/ \${1}@$domain" /etc/postfix/sender_canonical_regexp
+    done
+    postmap /etc/postfix/sender_canonical_regexp
+fi
+
+if [ -n "$MAIL_NON_CANONICAL_DEFAULT" ]; then
+    _add_line "{2}@$MAIL_NON_CANONICAL_DEFAULT" "/^(.+)@(.+)$/ $MAIL_NON_CANONICAL_PREFIX\${1}-\${2}@$MAIL_NON_CANONICAL_DEFAULT" /etc/postfix/sender_canonical_regexp
+    postmap /etc/postfix/sender_canonical_regexp
+fi

@@ -1,0 +1,4 @@
+#!/bin/bash
+set -e
+postfix check
+exec postfix start-fg

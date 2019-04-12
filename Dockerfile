@@ -26,7 +26,7 @@ ARG SOCKLOG_VERSION=v3.1.0-2
 ADD https://github.com/just-containers/s6-overlay/releases/download/${S6_VERSION}/s6-overlay-amd64.tar.gz /tmp/
 ADD https://github.com/just-containers/socklog-overlay/releases/download/${SOCKLOG_VERSION}/socklog-overlay-amd64.tar.gz /tmp/
 
-RUN apk add --no-cache postfix nano iproute2 bash tzdata && \
+RUN apk add --no-cache postfix nano iproute2 bash tzdata cyrus-sasl-plain cyrus-sasl-login && \
     tar xzf /tmp/s6-overlay-amd64.tar.gz -C / && \
     tar xzf /tmp/socklog-overlay-amd64.tar.gz -C / && \
     (rm "/tmp/"* 2>/dev/null || true) && (rm -rf /var/cache/apk/* 2>/dev/null || true)
